@@ -1,0 +1,41 @@
+// use prisma-8
+
+model Word {
+  // Primary key.
+  // PostgreSQL automatically generates 1, 2, 3, 4...
+  id Int @id @default(autoincrement())
+
+  // The Danish word itself.
+  // @unique means we cannot accidentally store
+  // the same Danish word twice.
+  word String @unique
+
+  // English translation.
+  translation String
+
+  // Position in our frequency list.
+  // Example: 1 = most frequent word.
+  frequencyRank Int @unique
+
+  // A word may have one classification.
+  //
+  // The ? means it's optional because a word might
+  // not have been classified yet.
+  classification Classification?
+}
+
+model Classification {
+  // Unique ID for each classification.
+  id Int @id @default(autoincrement())
+
+  // The status chosen by the user.
+  // For now this will contain:
+  // "KNOWN", "ALMOST", or "UNKNOWN".
+  status String
+
+  // ID of the word being classified.
+  wordId Int @unique
+
+  // Connect this classification to a Word.
+  word Word @relation(fields: [wordId], references: [id])
+}

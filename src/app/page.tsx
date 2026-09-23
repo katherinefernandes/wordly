@@ -1,69 +1,262 @@
-import Image from "next/image";
+"use client";
 
+// useState is a React "hook".
+// It lets our component remember information even when React re-renders the page.
+import { useEffect, useState } from "react";
+
+
+type Word = {
+  id: number;
+  word: string;
+  translation: string;
+  frequencyRank: number;
+};
+
+type Classification = {
+  id: number;
+  status: string;
+  wordId: number;
+};
+
+// This is our React component.
+//
+// In Next.js, src/app/page.tsx represents the "/" page.
+// So this component is what the user sees when they visit localhost:3000.
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+  // Words retrieved from our API/database.
+  //
+  // We start with an empty array because the API
+  // hasn't responded yet when the page first loads.
+  const [words, setWords] = useState<Word[]>([]);
+
+  useEffect(() => {
+    async function loadData() {
+      // Ask our backend for both resources.
+      const wordsResponse = await fetch("/api/words");
+      const classificationsResponse = await fetch("/api/classifications");
+
+      // Convert both JSON responses into JavaScript objects.
+      const wordsData: Word[] = await wordsResponse.json();
+      const classificationsData: Classification[] =
+        await classificationsResponse.json();
+
+      // Store the words in React state.
+      setWords(wordsData);
+
+      // Convert the database classifications into the format
+      // our existing React state uses.
+      const classificationMap: Record<string, string> = {};
+
+      for (const classification of classificationsData) {
+        const word = wordsData.find(
+          (word) => word.id === classification.wordId
+        );
+
+        if (word) {
+          classificationMap[word.word] = classification.status;
+        }
+      }
+
+      setClassifications(classificationMap);
+    }
+
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "1") {
+        classify("UNKNOWN");
+      }
+
+      if (event.key === "2") {
+        classify("ALMOST");
+      }
+
+      if (event.key === "3") {
+        classify("KNOWN");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  });
+
+  // STATE
+  // -----
+  //
+  // currentIndex stores which word we are currently displaying.
+  //
+  // useState(0) means:
+  // "Start with the value 0."
+  //
+  // currentIndex     = the current value
+  // setCurrentIndex  = function we use to change that value
+  //
+  // Initially:
+  // currentIndex = 0
+  //
+  // After clicking a button:
+  // currentIndex = 1
+  // then 2, 3, 4...
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Stores the classifications made by the user.
+  //
+  // Example:
+  // {
+  //   alligevel: "KNOWN",
+  //   nemlig: "ALMOST"
+  // }
+  const [classifications, setClassifications] = useState<
+    Record<string, string>
+  >({});
+
+
+  // Get the word corresponding to the current index.
+  //
+  // Example:
+  //
+  // currentIndex = 0  → words[0] → "alligevel"
+  // currentIndex = 1  → words[1] → "nemlig"
+  // currentIndex = 2  → words[2] → "måske"
+  const currentWord = words[currentIndex];
+
+  if (!currentWord) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p>Loading words...</p>
       </main>
-    </div>
+    );
+  }
+
+
+
+  async function classify(status: string) {
+    // Send the classification to our Next.js backend.
+    const response = await fetch("/api/classifications", {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        wordId: currentWord.id,
+        status: status,
+      }),
+    });
+
+    // Something went wrong on the server.
+    if (!response.ok) {
+      console.error("Failed to save classification");
+      return;
+    }
+
+    // Update our local React state too.
+    setClassifications({
+      ...classifications,
+      [currentWord.word]: status,
+    });
+
+    // Move to the next word.
+    if (currentIndex < words.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  }
+
+
+  // Everything inside return (...) describes
+  // what should appear in the browser.
+  //
+  // This syntax is called JSX.
+  //
+  // It looks like HTML, but we can also insert
+  // JavaScript values using { }.
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-zinc-50">
+
+      <div className="w-full max-w-xl px-6">
+
+        <div className="mb-12 text-center">
+
+          <p className="mb-8 text-sm font-semibold tracking-widest text-zinc-500">
+            🇩🇰 DANISH
+          </p>
+
+
+          {/* 
+            Display the Danish word.
+
+            Because currentWord changes when currentIndex changes,
+            this text automatically changes too.
+          */}
+          <h1 className="text-5xl font-semibold text-zinc-900">
+            {currentWord.word}
+          </h1>
+
+
+          {/* Display the English translation */}
+          <p className="mt-4 text-lg text-zinc-500">
+            {currentWord.translation}
+          </p>
+
+        </div>
+
+
+        {/* Container holding our three classification buttons */}
+        <div className="grid grid-cols-3 gap-3">
+
+          <button
+            // When clicked, call classify() and pass UNKNOWN.
+            onClick={() => classify("UNKNOWN")}
+            className="rounded-xl border border-zinc-300 bg-white px-4 py-3 text-zinc-700 hover:bg-zinc-100"
+          >
+            Don't know
+          </button>
+
+
+          <button
+            // Same function, but this time status = "ALMOST".
+            onClick={() => classify("ALMOST")}
+            className="rounded-xl border border-zinc-300 bg-white px-4 py-3 text-zinc-700 hover:bg-zinc-100"
+          >
+            Almost
+          </button>
+
+
+          <button
+            // And here status = "KNOWN".
+            onClick={() => classify("KNOWN")}
+            className="rounded-xl bg-zinc-900 px-4 py-3 text-white hover:bg-zinc-700"
+          >
+            Know
+          </button>
+
+        </div>
+
+
+        {/* 
+          Progress indicator.
+
+          We add 1 because humans normally count from 1,
+          while JavaScript arrays start at 0.
+
+          currentIndex = 0 → displays 1 / 5
+          currentIndex = 1 → displays 2 / 5
+        */}
+        <p className="mt-8 text-center text-sm text-zinc-400">
+          {currentIndex + 1} / {words.length}
+        </p>
+        
+        <pre className="mt-8 rounded-xl bg-zinc-900 p-4 text-left text-sm text-white">
+          {JSON.stringify(classifications, null, 2)}
+        </pre>
+      </div>
+    </main>
   );
 }
